@@ -9,11 +9,29 @@
 # query database
 import csv
 import random
+import pyttsx3
+
+class Talker():
+    def __init__(self):
+        self.engine = pyttsx3.init()
+        self.original_rate = self.engine.getProperty('rate')
+        self.rate = self.original_rate
+        self.engine.setProperty('rate', self.rate)
+        self.voiceID = 0
+
+    def say_fast(self, phrase):
+        print(phrase)
+        self.rate = 150
+        self.engine.setProperty('rate', self.rate)
+        # set volume to 40%
+        self.engine.setProperty('volume',.40)
+        self.engine.say(phrase)
+        self.engine.runAndWait()
 
 def main():
     # read file in
     questions = {}
-
+    talker = Talker()
     with open('JEOPARDY_CSV.csv', newline='', encoding="utf8") as csvfile:
         reader = csv.DictReader(csvfile)
         # 0 = airdate
@@ -40,16 +58,16 @@ def main():
         question = str(questions[question_number]['question'])
         answer = str(questions[question_number]['answer']).strip('"')
         print('\nQuestion Number: ' + str(question_number))
-        print(str('From the date: {}, category {}.\n for {}, please answer the question:\n{}').format(
+        talker.say_fast(str('From the date: {}, category {}.\n for {}, please answer the question:\n{}').format(
             date,
             category,
             value,
             question))
         user_response = str(input('What/Who is: '))
         if user_response.lower() in answer.lower():
-            print(('CORRECT!, please add {} to your total').format(value))
+            talker.say_fast(('CORRECT!, please add {} to your total').format(value))
         else:
-            print(('INCORRECT, the answer is {}, please deduct {} from your total').format(answer, value))
+            talker.say_fast(('INCORRECT, the answer is {}, please deduct {} from your total').format(answer, value))
 
 if __name__ == '__main__':
     main()

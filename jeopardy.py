@@ -1,12 +1,19 @@
 # dataset can be downloaded from is from https://www.kaggle.com/tunguz/200000-jeopardy-questions
 # (todo) database
-# (todo) voice speech
-# (todo) running totals
+# (todo) ## running totals
 # (todo) multiple players
 # (todo) save progress
+# (todo) implement database
+# (todo) implement custom value query
 # (todo) GUI
-# (todo) save database
-# query database
+# (todo) Implement Jeopardy Game format (introductions, daily double, final jeopardy)
+# (todo) with Proper number of questions / values, rounds etc.
+# (todo) implement a way for images to be seen when there's a URL in the question
+# (todo) custom games with date ranges
+# (todo) winstreaks for returning players
+# (todo) implement today's date
+# (todo) implement last week's winner
+
 import csv
 import random
 import pyttsx3
@@ -65,7 +72,7 @@ def main():
             question))
         user_response = str(input('What/Who is: '))
         if user_response.lower() in answer.lower():
-            talker.say_fast(('CORRECT!, please add {} to your total').format(value))
+            talker.say_fast(('CORRECT!, the answer is {}, please add {} to your total').format(answer, value))
         else:
             talker.say_fast(('INCORRECT, the answer is {}, please deduct {} from your total').format(answer, value))
 

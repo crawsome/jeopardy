@@ -1,24 +1,19 @@
 # JEOPARDY_CSV.csv can be downloaded from https://www.kaggle.com/tunguz/200000-jeopardy-questions
-# Completed in this release
-# (todo) database DONE
-# (todo) running totals DONE
-# (todo) implement custom value query DONE
-# (todo) implement today's date DONE
-# (todo) check database integrity before starting DONE
+# Done for this release
+# (todo) implement speech recognition DONE
+# (todo) buzzers KINDA DONE
+
 
 # Planned for future releases
 # (todo) multiple players
 # (todo) save progress
 # (todo) implement last week's winner / winstreaks
-# (todo) implement speech recognition
 # (todo) GUI
-# (todo) buzzers
-# (todo) Implement Jeopardy Game format (introductions, daily double, final jeopardy)
-# (todo) with Proper number of questions / values, rounds etc.
+# (todo) Endless question mode
+# (todo) Regular game mode (introductions, rounds, daily double, final jeopardy, transitions)
 # (todo) implement a way for images to be seen when there's a URL in the question
 # (todo) custom games with date ranges
 # (todo) winstreaks for returning players
-
 
 import csv
 import random
@@ -27,8 +22,29 @@ from datetime import datetime as dt
 from sqlite3 import connect
 import os
 import hashlib
+import speech_recognition
+import time
+
+# requires visual C++ Build Tools on windows: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+import pyaudio
 
 hasher = hashlib.md5()
+
+
+# Creates mic, audio source, then tries to call google voice recognition.
+def recognize_speech(recognizer, microphone):
+    with microphone as source:
+        recognizer.adjust_for_ambient_noise(source)
+        audio = recognizer.listen(source)
+    response = 'No response'
+    try:
+        response = recognizer.recognize_google(audio)
+    except speech_recognition.RequestError:
+        print("RequestError")
+    except speech_recognition.UnknownValueError:
+        print('UnknownValueError')
+    return response
+
 
 class Player:
     def __init__(self, name='test_player', money=0, winstreak=0, hometown='Anywhere, USA', fact='Grows Peppers'):
@@ -53,7 +69,7 @@ class Talker:
 
     def say_fast(self, phrase):
         print(phrase)
-        self.rate = 250
+        self.rate = 200
         self.engine.setProperty('rate', self.rate)
         # set volume to 40%
         self.engine.setProperty('volume', .40)
@@ -69,11 +85,12 @@ class Talker:
         self.engine.say(phrase)
         self.engine.runAndWait()
 
+
 class Game:
     def __init__(self):
         players = []
         self.dbpath = './game.db'
-        self.db_md5 = '43ae111c4301b26a695f0c109118fa70'
+        self.db_md5 = 'c352294fd78d85fcd234227ee123c542'
         self.conn = connect(self.dbpath)
         self.cursor = self.conn.cursor()
         self.questions = {}
@@ -115,8 +132,11 @@ class Game:
                 '''CREATE TABLE IF NOT EXISTS jeopardy_questions (i INT, date TEXT, category TEXT, value INT, question TEXT, answer TEXT)''')
             for i, row in enumerate(reader):
                 # replaces all blank values with 200
-                value = 200 if (row[' Value'] is None or row[' Value'].lower() == "none") else row[' Value'].strip(
-                    '$').strip(',').strip('\'')
+
+                if (row[' Value'] is None or row[' Value'].lower() == "none"):
+                    value = 200
+                else:
+                    value = int(str(row[' Value']).replace('$', '').replace(',', '').replace('\'', ''))
                 self.questions[i] = {'date': str(row[' Air Date']), 'category': row[' Category'], 'value': value,
                                      'question': row[' Question'], 'answer': row[' Answer']}
                 self.cursor.execute('INSERT INTO jeopardy_questions VALUES (?,?,?,?,?,?);',
@@ -132,49 +152,60 @@ class Game:
 
     # (todo) retrieve_questions needs to build a custom SQL query for question filtering
     def question_query(self, date=None, value=None):
-        d = '' if date is None else 'date = {}'.format(date)
+        d = '' if date in [None, 'None'] else 'date = \"{}\"'.format(date)
         v = '' if value in [None, 'None'] else 'value = {}'.format(value)
         and_chain = ' AND ' if d and v else ''
         where = ' WHERE ' if d or v else ''
         end = ';'
         query = """SELECT * FROM jeopardy_questions{}{}{}{}{}""".format(where, d, and_chain, v, end)
-        print(query)
+        # print(query)
         self.cursor.execute(query)
         desc = self.cursor.description
         column_names = [col[0] for col in desc]
-        print(column_names)
         self.query_questions = [dict(zip(column_names, row)) for row in self.cursor.fetchall()]
         self.question_limit = len(self.query_questions)
 
     def standard_questions(self):
         two_hundred = []
 
+
 def main():
+    our_recognizer = speech_recognition.Recognizer()
+    our_microphone = speech_recognition.Microphone()
+
     player_1 = Player('Colin B', 0)
     # read file in
     talker = Talker()
-    talker.say_fast(str('Welcome to Jeopardy. I\'m your host, HAL. Today\'s date is {}'.format(dt.now().date())))
+    # talker.say_fast(str('Welcome to Jeopardy. I\'m your host, HAL. Today\'s date is {}'.format(dt.now().date())))
     game = Game()
     game.check_db_integrity()
     # here is where you input the values that go into the sql query.
-    game.question_query(value=200) #, date='2004-12-31')
+    # game.question_query(value=200, date='2004-12-31')
+    # game.question_query(value=200)
+    #game.question_query(date='2004-12-31')
+    game.question_query()
     playing = True
     question_number = 0
     while playing:
-        question_number = random.randint(0, game.question_limit)
         # question_number = int(input('question number:'))
+        question_number = random.randint(0, game.question_limit - 1)
         date = str(game.query_questions[question_number]['date'])
         category = str(game.query_questions[question_number]['category'])
         value = int(game.query_questions[question_number]['value'])
         question = str(game.query_questions[question_number]['question'])
         answer = str(game.query_questions[question_number]['answer']).strip('"')
-        talker.say_fast('\nQuestion Number: ' + str(question_number))
-        talker.say_fast(str('From the date: {}, category {}.\n for ${}, please answer the question:\n').format(
-            date,
-            category,
-            value))
+        # talker.say_fast(str('From the date: {}, category {}.\n for ${}, please answer the question:\n').format(date,category,value))
+        talker.say_fast(str('Category {}'.format(category)))
         talker.say_fast('{}'.format(question))
-        user_response = str(input('What/Who is: '))
+        # user_response = str(input('What/Who is: '))
+        #time.sleep(2)
+        #buzzer = input('press ENTER for buzzer')
+        talker.say_fast('speak now')
+        user_response = recognize_speech(our_recognizer, our_microphone).replace('what is','').replace('who is','').replace('where is','')
+        try:
+            print("You said: \"{}\"".format(user_response))
+        except 'UnknownValueError':
+            print("Speech not recognizable or API not available")
         if user_response.lower() in answer.lower():
             talker.say_fast(('CORRECT!, the answer is {}, we add ${} to your total').format(answer, value))
             player_1.add_funds(value)
@@ -183,6 +214,7 @@ def main():
             player_1.add_funds(-value)
         talker.say_fast('${} is the total for {}'.format(player_1.money, player_1.name))
     game.conn.close()
+
 
 if __name__ == '__main__':
     main()

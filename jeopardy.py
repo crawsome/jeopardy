@@ -1,10 +1,18 @@
-# JEOPARDY_CSV.csv can be downloaded from https://www.kaggle.com/tunguz/200000-jeopardy-questions
+# Credits:
+# JEOPARDY_CSV.csv original can be downloaded from https://www.kaggle.com/tunguz/200000-jeopardy-questions
+
+
+# To run this project
+# The CSV and database for the project can be downloaded here: https://drive.google.com/open?id=13MBHYBgc--F7Sned8J5XC4djgDBI4qCV
+
+# Jeopardy-Trainer
+# 2019 Colin Burke
+
 # Done for this release
-# (todo) implement speech recognition DONE
-# (todo) buzzers KINDA DONE
 
 
 # Planned for future releases
+# (todo) buzzers 
 # (todo) multiple players
 # (todo) save progress
 # (todo) implement last week's winner / winstreaks
@@ -12,8 +20,8 @@
 # (todo) Endless question mode
 # (todo) Regular game mode (introductions, rounds, daily double, final jeopardy, transitions)
 # (todo) implement a way for images to be seen when there's a URL in the question
-# (todo) custom games with date ranges
-# (todo) winstreaks for returning players
+# (todo) custom games for date ranges
+# (todo) category search
 
 import csv
 import random
@@ -23,12 +31,20 @@ from sqlite3 import connect
 import os
 import hashlib
 import speech_recognition
-import time
+from difflib import SequenceMatcher
 
 # requires visual C++ Build Tools on windows: https://visualstudio.microsoft.com/visual-cpp-build-tools/
-import pyaudio
 
 hasher = hashlib.md5()
+
+
+# if string is at least 80% similar, will return true
+def similarstring(a, b, likeness):
+    ourratio = SequenceMatcher(None, a, b).ratio()
+    if ourratio >= likeness:
+        return True
+    else:
+        return False
 
 
 # Creates mic, audio source, then tries to call google voice recognition.
@@ -108,20 +124,20 @@ class Game:
         self.conn = connect(self.dbpath)
         self.cursor = self.conn.cursor()
 
-    def check_db_integrity(self):
+    def check_db_create_if_not_exists(self):
         if os.path.exists('./game.db'):
             with open('./game.db', 'rb') as afile:
                 buf = afile.read()
                 hasher.update(buf)
-            print(hasher.hexdigest())
+            # print(hasher.hexdigest())
             if hasher.hexdigest() == self.db_md5:
                 print('Database Matches Hash')
             else:
-                print('Database Doesn\'t match Hash')
-                self.deletedb()
-                self.setupdb()
+                print('Database Doesn\'t match Hash with o. It\'s recommended you delete the DB and restart the script')
+                # self.deletedb()
         else:
             print('database does not exist')
+            self.setupdb()
 
     def setupdb(self):
         self.opendb()
@@ -178,11 +194,11 @@ def main():
     talker = Talker()
     # talker.say_fast(str('Welcome to Jeopardy. I\'m your host, HAL. Today\'s date is {}'.format(dt.now().date())))
     game = Game()
-    game.check_db_integrity()
+    game.check_db_create_if_not_exists()
     # here is where you input the values that go into the sql query.
     # game.question_query(value=200, date='2004-12-31')
     # game.question_query(value=200)
-    #game.question_query(date='2004-12-31')
+    # game.question_query(date='2004-12-31')
     game.question_query()
     playing = True
     question_number = 0
@@ -194,19 +210,23 @@ def main():
         value = int(game.query_questions[question_number]['value'])
         question = str(game.query_questions[question_number]['question'])
         answer = str(game.query_questions[question_number]['answer']).strip('"')
-        # talker.say_fast(str('From the date: {}, category {}.\n for ${}, please answer the question:\n').format(date,category,value))
-        talker.say_fast(str('Category {}'.format(category)))
+        talker.say_fast(
+            str('From the date: {}, category {}.\n for ${}, please answer the question:\n').format(date, category,
+                                                                                                   value))
+        # talker.say_fast(str('Category {}'.format(category)))
         talker.say_fast('{}'.format(question))
         # user_response = str(input('What/Who is: '))
-        #time.sleep(2)
-        #buzzer = input('press ENTER for buzzer')
-        talker.say_fast('speak now')
-        user_response = recognize_speech(our_recognizer, our_microphone).replace('what is','').replace('who is','').replace('where is','')
+        # time.sleep(2)
+        # buzzer = input('press ENTER for buzzer')
+        talker.say_fast('speak in 2 seconds')
+        user_response = recognize_speech(
+            our_recognizer, our_microphone).replace('what is ', '').replace('who is ', '').replace('where is ', '').replace('a ', '').replace('what are ', '')
         try:
             print("You said: \"{}\"".format(user_response))
         except 'UnknownValueError':
             print("Speech not recognizable or API not available")
-        if user_response.lower() in answer.lower():
+            # todo make the word comparison better, currently someone can guess a subset of a word to get an answer right
+        if similarstring(user_response.lower(), answer.lower(), .80) and user_response.lower() in answer.lower():
             talker.say_fast(('CORRECT!, the answer is {}, we add ${} to your total').format(answer, value))
             player_1.add_funds(value)
         else:

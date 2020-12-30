@@ -1,7 +1,6 @@
 # Credits:
 # JEOPARDY_CSV.csv original can be downloaded from https://www.kaggle.com/tunguz/200000-jeopardy-questions
 
-
 # To run this project
 # The CSV and database for the project can be downloaded here: https://drive.google.com/open?id=13MBHYBgc--F7Sned8J5XC4djgDBI4qCV
 
